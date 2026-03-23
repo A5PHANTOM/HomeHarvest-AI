@@ -19,6 +19,20 @@ class MarketplaceItem(Base):
     distance = Column(String, nullable=False)
     seller = Column(String, nullable=False)
     time_posted = Column(String, nullable=False)
+    image_url = Column(String, nullable=True)
+    description = Column(String, nullable=True)
+    is_out_of_stock = Column(Integer, default=0, nullable=False)
+
+
+class MarketplaceInquiry(Base):
+    __tablename__ = "marketplace_inquiries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    item_id = Column(Integer, nullable=False, index=True)
+    item_title = Column(String, nullable=False)
+    buyer_email = Column(String, nullable=False, index=True)
+    buyer_message = Column(String, nullable=True)
+    created_at = Column(String, nullable=False)
 
 
 class Reminder(Base):

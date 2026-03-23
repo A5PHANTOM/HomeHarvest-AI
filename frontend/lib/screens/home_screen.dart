@@ -17,15 +17,19 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Map<String, dynamic>> _recommendedPlants = [];
   List<Map<String, dynamic>> _myGardenPlants = [];
   List<Map<String, dynamic>> _news = [];
+  bool _newsRefreshing = false;
   String _selectedSpaceType = 'balcony';
   String _selectedSunlight = 'medium';
   final TextEditingController _locationController = TextEditingController(
     text: 'Kerala',
   );
+  final TextEditingController _customPreferenceController =
+      TextEditingController();
 
   @override
   void dispose() {
     _locationController.dispose();
+    _customPreferenceController.dispose();
     super.dispose();
   }
 
@@ -94,6 +98,111 @@ class _HomeScreenState extends State<HomeScreen> {
     await _persistMyGarden();
   }
 
+  Future<void> _showAddCustomPlantDialog() async {
+    final nameController = TextEditingController();
+    final notesController = TextEditingController();
+    String selectedColor = 'teal';
+
+    final shouldAdd = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: const Text('Add Custom Plant'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Plant Name',
+                      hintText: 'e.g. Mint',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: notesController,
+                    decoration: const InputDecoration(
+                      labelText: 'Status / Notes',
+                      hintText: 'e.g. Daily watering, custom pot',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    value: selectedColor,
+                    decoration: const InputDecoration(labelText: 'Card Color'),
+                    items: const [
+                      DropdownMenuItem(value: 'teal', child: Text('Teal')),
+                      DropdownMenuItem(value: 'green', child: Text('Green')),
+                      DropdownMenuItem(value: 'orange', child: Text('Orange')),
+                      DropdownMenuItem(
+                        value: 'lightGreen',
+                        child: Text('Light Green'),
+                      ),
+                      DropdownMenuItem(value: 'red', child: Text('Red')),
+                      DropdownMenuItem(
+                        value: 'deepPurple',
+                        child: Text('Deep Purple'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setDialogState(() => selectedColor = value);
+                    },
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  if (nameController.text.trim().isEmpty) return;
+                  Navigator.pop(context, true);
+                },
+                child: const Text('Add'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (shouldAdd != true) return;
+
+    final name = nameController.text.trim();
+    if (_isPlantInMyGarden(name)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('$name is already in My Garden')));
+      return;
+    }
+
+    final customPlant = {
+      'name': name,
+      'status': notesController.text.trim().isEmpty
+          ? 'Custom plant added by you'
+          : notesController.text.trim(),
+      'color': selectedColor,
+      'isCustom': true,
+    };
+
+    setState(() {
+      _myGardenPlants = [..._myGardenPlants, customPlant];
+    });
+    await _persistMyGarden();
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('$name added to My Garden')));
+  }
+
   Future<void> _loadData() async {
     setState(() => _loading = true);
     try {
@@ -103,6 +212,7 @@ class _HomeScreenState extends State<HomeScreen> {
         'location': _locationController.text.trim().isEmpty
             ? 'Unknown'
             : _locationController.text.trim(),
+        'custom_query': _customPreferenceController.text.trim(),
       });
       final newsList = await BackendApi.getList('/api/home/news');
 
@@ -128,6 +238,29 @@ class _HomeScreenState extends State<HomeScreen> {
       ).showSnackBar(SnackBar(content: Text(e.toString())));
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _refreshNewsOnly() async {
+    setState(() => _newsRefreshing = true);
+    try {
+      final newsList = await BackendApi.getList('/api/home/news');
+      final news = newsList
+          .whereType<Map>()
+          .map((e) => e.map((key, value) => MapEntry(key.toString(), value)))
+          .toList();
+
+      if (!mounted) return;
+      setState(() {
+        _news = news;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      if (mounted) setState(() => _newsRefreshing = false);
     }
   }
 
@@ -179,12 +312,22 @@ class _HomeScreenState extends State<HomeScreen> {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        TextButton(
-                          onPressed: () async {
-                            setState(() => _myGardenPlants = []);
-                            await _persistMyGarden();
-                          },
-                          child: const Text("Clear All"),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TextButton.icon(
+                              onPressed: _showAddCustomPlantDialog,
+                              icon: const Icon(Icons.add_circle_outline),
+                              label: const Text('Add Custom'),
+                            ),
+                            TextButton(
+                              onPressed: () async {
+                                setState(() => _myGardenPlants = []);
+                                await _persistMyGarden();
+                              },
+                              child: const Text("Clear All"),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -201,20 +344,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 8),
                     _buildRecommendedHorizontalList(),
                     const SizedBox(height: 24),
-                    const Text(
-                      "Gardening Tips & News",
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    ..._news.map(
-                      (n) => _buildNewsCard(
-                        title: (n['title'] ?? '').toString(),
-                        subtitle: (n['subtitle'] ?? '').toString(),
-                      ),
-                    ),
+                    _buildNewsSection(),
                   ],
                 ),
               ),
@@ -337,6 +467,15 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const SizedBox(height: 10),
+            TextField(
+              controller: _customPreferenceController,
+              decoration: const InputDecoration(
+                labelText: 'Custom Preference (Optional)',
+                hintText: 'e.g. tomato for balcony, low water winter crops',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 10),
             Align(
               alignment: Alignment.centerRight,
               child: ElevatedButton.icon(
@@ -367,7 +506,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     return SizedBox(
-      height: 140,
+      height: 170,
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: _myGardenPlants
@@ -393,7 +532,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     return SizedBox(
-      height: 140,
+      height: 170,
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: _recommendedPlants.map((plant) {
@@ -439,7 +578,7 @@ class _HomeScreenState extends State<HomeScreen> {
     VoidCallback? onActionTap,
   }) {
     return Container(
-      width: 150,
+      width: 165,
       margin: const EdgeInsets.only(right: 12),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
@@ -448,7 +587,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       padding: const EdgeInsets.all(12),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           if (actionIcon != null)
             Align(
@@ -463,12 +602,21 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           Icon(Icons.local_florist, size: 40, color: color),
           const SizedBox(height: 8),
-          Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
           Text(
-            status,
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
-            textAlign: TextAlign.center,
+            name,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
+          Expanded(
+            child: Text(
+              status,
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+              textAlign: TextAlign.center,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
       ),
@@ -493,6 +641,62 @@ class _HomeScreenState extends State<HomeScreen> {
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Text(subtitle),
         trailing: const Icon(Icons.chevron_right),
+      ),
+    );
+  }
+
+  Widget _buildNewsSection() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.green.shade50,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.green.shade100),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Gardening Tips & News',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _newsRefreshing ? null : _refreshNewsOnly,
+                icon: _newsRefreshing
+                    ? const SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh),
+                label: const Text('Refresh'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (_news.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Text('No news available right now. Tap refresh.'),
+            )
+          else
+            ..._news.map(
+              (n) => _buildNewsCard(
+                title: (n['title'] ?? '').toString(),
+                subtitle: (n['subtitle'] ?? '').toString(),
+              ),
+            ),
+        ],
       ),
     );
   }

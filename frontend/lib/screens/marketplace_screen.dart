@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../config/api_config.dart';
 import '../services/backend_api.dart';
 
 class MarketplaceScreen extends StatefulWidget {
@@ -44,6 +45,8 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
     final priceController = TextEditingController();
     final distanceController = TextEditingController(text: 'Nearby');
     final sellerController = TextEditingController(text: 'Community User');
+    final descriptionController = TextEditingController();
+    final imageUrlController = TextEditingController();
 
     final shouldPost = await showDialog<bool>(
       context: context,
@@ -55,11 +58,11 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
             children: [
               TextField(
                 controller: titleController,
-                decoration: const InputDecoration(labelText: 'Title'),
+                decoration: const InputDecoration(labelText: 'Title *'),
               ),
               TextField(
                 controller: priceController,
-                decoration: const InputDecoration(labelText: 'Price'),
+                decoration: const InputDecoration(labelText: 'Price *'),
               ),
               TextField(
                 controller: distanceController,
@@ -68,6 +71,19 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
               TextField(
                 controller: sellerController,
                 decoration: const InputDecoration(labelText: 'Seller'),
+              ),
+              TextField(
+                controller: descriptionController,
+                decoration: const InputDecoration(
+                  labelText: 'Description (optional)',
+                ),
+                maxLines: 2,
+              ),
+              TextField(
+                controller: imageUrlController,
+                decoration: const InputDecoration(
+                  labelText: 'Image URL (optional)',
+                ),
               ),
             ],
           ),
@@ -94,6 +110,9 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
         'distance': distanceController.text.trim(),
         'seller': sellerController.text.trim(),
         'time_posted': 'Posted just now',
+        'description': descriptionController.text.trim(),
+        'image_url': imageUrlController.text.trim(),
+        'is_out_of_stock': 0,
       });
 
       if (!mounted) return;
@@ -172,11 +191,18 @@ class _MarketplaceListings extends StatelessWidget {
         children: items
             .map(
               (item) => _buildListingItem(
+                context: context,
+                itemId: int.tryParse((item['id'] ?? '').toString()) ?? 0,
                 title: (item['title'] ?? '').toString(),
                 price: (item['price'] ?? '').toString(),
                 distance: (item['distance'] ?? '').toString(),
                 seller: (item['seller'] ?? '').toString(),
                 time: (item['time_posted'] ?? '').toString(),
+                description: (item['description'] ?? '').toString(),
+                imageUrl: (item['image_url'] ?? '').toString(),
+                isOutOfStock:
+                    int.tryParse((item['is_out_of_stock'] ?? '0').toString()) ??
+                    0,
               ),
             )
             .toList(),
@@ -184,12 +210,101 @@ class _MarketplaceListings extends StatelessWidget {
     );
   }
 
+  Future<void> _showBuyNowDialog(
+    BuildContext context, {
+    required int itemId,
+    required String itemTitle,
+    required bool isOutOfStock,
+  }) async {
+    final messenger = ScaffoldMessenger.of(context);
+
+    if (isOutOfStock) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('This item is currently out of stock.')),
+      );
+      return;
+    }
+
+    final emailController = TextEditingController();
+    final messageController = TextEditingController();
+
+    final shouldSend = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Buy Now'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Send request for: $itemTitle'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: emailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(
+                labelText: 'Your Gmail ID',
+                hintText: 'example@gmail.com',
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: messageController,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: 'Message (optional)',
+                hintText: 'I want to buy this item',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Send'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldSend != true) return;
+
+    final email = emailController.text.trim().toLowerCase();
+    if (!email.endsWith('@gmail.com')) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Please enter a valid Gmail ID.')),
+      );
+      return;
+    }
+
+    try {
+      await BackendApi.postJson('/api/marketplace/buy', {
+        'item_id': itemId,
+        'buyer_email': email,
+        'buyer_message': messageController.text.trim(),
+      });
+
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Request sent to admin successfully.')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+  }
+
   Widget _buildListingItem({
+    required BuildContext context,
+    required int itemId,
     required String title,
     required String price,
     required String distance,
     required String seller,
     required String time,
+    String description = '',
+    String imageUrl = '',
+    int isOutOfStock = 0,
   }) {
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -197,73 +312,146 @@ class _MarketplaceListings extends StatelessWidget {
       elevation: 2,
       child: Padding(
         padding: const EdgeInsets.all(12.0),
-        child: Row(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Image or placeholder
             Container(
-              height: 80,
-              width: 80,
+              height: 140,
+              width: double.infinity,
               decoration: BoxDecoration(
                 color: Colors.green.shade100,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.eco, size: 40, color: Colors.green),
+              child: imageUrl.isNotEmpty && imageUrl != ''
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        imageUrl.startsWith('http')
+                            ? imageUrl
+                            : '${ApiConfig.baseUrl}$imageUrl',
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Center(
+                            child: Icon(
+                              Icons.eco,
+                              size: 60,
+                              color: Colors.green,
+                            ),
+                          );
+                        },
+                      ),
+                    )
+                  : const Center(
+                      child: Icon(Icons.eco, size: 60, color: Colors.green),
+                    ),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
+            const SizedBox(height: 12),
+            // Title with stock badge
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
                     title,
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    price,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.green.shade700,
+                ),
+                if (isOutOfStock == 1)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade100,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'Out of Stock',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red.shade700,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.location_on,
-                        size: 14,
-                        color: Colors.grey.shade600,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        distance,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Icon(Icons.person, size: 14, color: Colors.grey.shade600),
-                      const SizedBox(width: 4),
-                      Text(
-                        seller,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                    ],
+              ],
+            ),
+            const SizedBox(height: 6),
+            // Description
+            if (description.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: Text(
+                  description,
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            // Price
+            Text(
+              price,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: Colors.green.shade700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Location and Seller
+            Row(
+              children: [
+                Icon(Icons.location_on, size: 14, color: Colors.grey.shade600),
+                const SizedBox(width: 4),
+                Text(
+                  distance,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+                const SizedBox(width: 12),
+                Icon(Icons.person, size: 14, color: Colors.grey.shade600),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    seller,
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    time,
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
-                  ),
-                ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              time,
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: isOutOfStock == 1
+                    ? null
+                    : () => _showBuyNowDialog(
+                        context,
+                        itemId: itemId,
+                        itemTitle: title,
+                        isOutOfStock: isOutOfStock == 1,
+                      ),
+                icon: const Icon(Icons.shopping_cart_checkout),
+                label: Text(isOutOfStock == 1 ? 'Out of Stock' : 'Buy Now'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isOutOfStock == 1
+                      ? Colors.grey.shade400
+                      : Colors.green.shade700,
+                  foregroundColor: Colors.white,
+                ),
               ),
             ),
           ],
