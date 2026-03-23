@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import '../main.dart'; 
+import '../main.dart';
+import '../config/api_config.dart';
 import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -18,11 +19,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _login() async {
     setState(() => _isLoading = true);
-    
+
     try {
-      // Use 10.0.2.2 for Android emulator, 127.0.0.1 for iOS simulator / web
       final response = await http.post(
-        Uri.parse('http://127.0.0.1:8000/api/login'),
+        ApiConfig.uri('/api/login'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'email': _emailController.text,
@@ -37,17 +37,21 @@ class _LoginScreenState extends State<LoginScreen> {
           MaterialPageRoute(builder: (context) => const MainLayout()),
         );
       } else {
-        _showError("Invalid credentials");
+        String message = 'Invalid credentials';
+        try {
+          final body = jsonDecode(response.body);
+          if (body is Map && body['detail'] != null) {
+            message = body['detail'].toString();
+          }
+        } catch (_) {}
+        _showError(message);
       }
     } catch (e) {
-      // Fallback for Demo purposes if backend isn't bound/reachable perfectly yet
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Backend not reachable. Bypassing login for Demo! 🌱")),
-      );
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const MainLayout()),
+        SnackBar(
+          content: Text("Backend not reachable at ${ApiConfig.baseUrl}"),
+        ),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -75,7 +79,9 @@ class _LoginScreenState extends State<LoginScreen> {
               padding: const EdgeInsets.all(24.0),
               child: Card(
                 elevation: 12,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.all(32.0),
                   child: Column(
@@ -85,17 +91,25 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(height: 16),
                       const Text(
                         "HomeHarvest AI",
-                        style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 8),
-                      const Text("Sign in to grow your community", style: TextStyle(color: Colors.grey)),
+                      const Text(
+                        "Sign in to grow your community",
+                        style: TextStyle(color: Colors.grey),
+                      ),
                       const SizedBox(height: 32),
                       TextField(
                         controller: _emailController,
                         decoration: InputDecoration(
                           labelText: "Email",
                           prefixIcon: const Icon(Icons.email_outlined),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -105,7 +119,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         decoration: InputDecoration(
                           labelText: "Password",
                           prefixIcon: const Icon(Icons.lock_outline),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 24),
@@ -117,11 +133,21 @@ class _LoginScreenState extends State<LoginScreen> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.green.shade700,
                             foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
                           ),
-                          child: _isLoading 
-                              ? const CircularProgressIndicator(color: Colors.white) 
-                              : const Text("LOGIN", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                          child: _isLoading
+                              ? const CircularProgressIndicator(
+                                  color: Colors.white,
+                                )
+                              : const Text(
+                                  "LOGIN",
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -129,11 +155,16 @@ class _LoginScreenState extends State<LoginScreen> {
                         onPressed: () {
                           Navigator.pushReplacement(
                             context,
-                            MaterialPageRoute(builder: (context) => const SignupScreen()),
+                            MaterialPageRoute(
+                              builder: (context) => const SignupScreen(),
+                            ),
                           );
                         },
-                        child: const Text("Create an Account", style: TextStyle(color: Colors.green)),
-                      )
+                        child: const Text(
+                          "Create an Account",
+                          style: TextStyle(color: Colors.green),
+                        ),
+                      ),
                     ],
                   ),
                 ),

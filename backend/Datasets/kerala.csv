@@ -1,0 +1,19 @@
+Crop,Type,Season,Temp_C,Water_Level,Soil_Type,Growth_Days,Yield_per_Plant_kg,Balcony_Suitable,Profit_Level
+Tomato,Vegetable,All,20-30,Medium,Loamy,60-80,2.5,Yes,High
+Chilli,Vegetable,All,25-35,Medium,Loamy,70-90,1.5,Yes,High
+Spinach,Vegetable,Winter,15-25,Low,Loamy,25-40,0.5,Yes,Medium
+Brinjal,Vegetable,All,20-30,Medium,Loamy,70-100,2.0,Yes,High
+Okra,Vegetable,Summer,25-35,Medium,Sandy,50-70,1.8,Yes,Medium
+Cabbage,Vegetable,Winter,15-20,Medium,Clay,80-100,1.5,No,Medium
+Carrot,Vegetable,Winter,15-25,Low,Sandy,70-90,1.2,No,Medium
+Beans,Vegetable,All,20-30,Medium,Loamy,50-65,1.0,Yes,Medium
+Cucumber,Vegetable,Summer,22-32,High,Sandy,50-70,2.5,Yes,High
+Pumpkin,Vegetable,All,25-35,High,Loamy,90-120,5.0,No,High
+Banana,Fruit,All,25-35,High,Clay,300-360,20.0,No,High
+Papaya,Fruit,All,22-35,Medium,Loamy,150-180,15.0,Yes,High
+Pineapple,Fruit,All,20-30,Low,Sandy,18-24 months,2.0,Yes,High
+Mango,Fruit,Summer,24-35,Medium,Loamy,3-5 years,100.0,No,High
+Guava,Fruit,All,20-30,Medium,Loamy,2-3 years,25.0,Yes,High
+Watermelon,Fruit,Summer,25-35,High,Sandy,70-100,5.0,No,High
+Strawberry,Fruit,Winter,18-25,Medium,Loamy,60-90,0.3,Yes,High
+Lemon,Fruit,All,20-35,Medium,Loamy,2-3 years,30.0,Yes,High

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/backend_api.dart';
 
 class AssistantScreen extends StatefulWidget {
   const AssistantScreen({super.key});
@@ -9,21 +10,53 @@ class AssistantScreen extends StatefulWidget {
 
 class _AssistantScreenState extends State<AssistantScreen> {
   final TextEditingController _msgController = TextEditingController();
+  bool _sending = false;
   final List<Map<String, String>> _messages = [
     {
       "role": "ai",
-      "text": "Hello! I'm your AI Gardening Assistant. Tell me about your space or ask a question!"
-    }
+      "text":
+          "Hello! I'm your AI Gardening Assistant. Tell me about your space or ask a question!",
+    },
   ];
 
-  void _sendMessage() {
+  Future<void> _sendMessage() async {
     if (_msgController.text.trim().isEmpty) return;
+
+    final userText = _msgController.text.trim();
+    _msgController.clear();
+
     setState(() {
-      _messages.add({"role": "user", "text": _msgController.text});
-      // Placeholder response
-      _messages.add({"role": "ai", "text": "That sounds great! For your space, I'd recommend growing mint and tomatoes. They are easy for beginners."});
-      _msgController.clear();
+      _sending = true;
+      _messages.add({"role": "user", "text": userText});
     });
+
+    try {
+      final result = await BackendApi.postJson('/api/chat', {
+        'message': userText,
+      });
+      final aiText = (result['response'] ?? 'No response').toString();
+      if (!mounted) return;
+      setState(() {
+        _messages.add({"role": "ai", "text": aiText});
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _messages.add({
+          "role": "ai",
+          "text": "I couldn't reach backend. Please try again.",
+        });
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _sending = false;
+        });
+      }
+    }
   }
 
   @override
@@ -44,7 +77,9 @@ class _AssistantScreenState extends State<AssistantScreen> {
               itemBuilder: (context, index) {
                 final isUser = _messages[index]['role'] == 'user';
                 return Align(
-                  alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+                  alignment: isUser
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
                   child: Container(
                     margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.all(12),
@@ -52,7 +87,9 @@ class _AssistantScreenState extends State<AssistantScreen> {
                       maxWidth: MediaQuery.of(context).size.width * 0.75,
                     ),
                     decoration: BoxDecoration(
-                      color: isUser ? Colors.green.shade100 : Colors.grey.shade200,
+                      color: isUser
+                          ? Colors.green.shade100
+                          : Colors.grey.shade200,
                       borderRadius: BorderRadius.circular(16).copyWith(
                         bottomRight: isUser ? const Radius.circular(0) : null,
                         bottomLeft: !isUser ? const Radius.circular(0) : null,
@@ -93,7 +130,8 @@ class _AssistantScreenState extends State<AssistantScreen> {
                 ActionChip(
                   label: const Text("I have a small balcony"),
                   onPressed: () {
-                    _msgController.text = "I have a small balcony. What can I grow?";
+                    _msgController.text =
+                        "I have a small balcony. What can I grow?";
                     _sendMessage();
                   },
                 ),
@@ -101,13 +139,14 @@ class _AssistantScreenState extends State<AssistantScreen> {
                 ActionChip(
                   label: const Text("My plant is yellowing"),
                   onPressed: () {
-                    _msgController.text = "My tomato plant leaves are turning yellow.";
+                    _msgController.text =
+                        "My tomato plant leaves are turning yellow.";
                     _sendMessage();
                   },
                 ),
               ],
             ),
-          )
+          ),
         ],
       ),
     );
@@ -123,7 +162,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
             color: Colors.black.withOpacity(0.05),
             offset: const Offset(0, -2),
             blurRadius: 10,
-          )
+          ),
         ],
       ),
       child: SafeArea(
@@ -151,7 +190,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
               backgroundColor: Colors.green.shade700,
               child: IconButton(
                 icon: const Icon(Icons.send, color: Colors.white, size: 20),
-                onPressed: _sendMessage,
+                onPressed: _sending ? null : _sendMessage,
               ),
             ),
           ],
