@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/assistant_screen.dart';
 import 'screens/calendar_screen.dart';
@@ -19,7 +20,7 @@ class HomeHarvestApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
         useMaterial3: true,
       ),
-      home: const MainLayout(),
+      home: const LoginScreen(),
     );
   }
 }
