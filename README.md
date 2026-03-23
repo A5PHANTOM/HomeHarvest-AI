@@ -83,7 +83,7 @@ User enters space details
         ↓
 AI suggests plants
         ↓
-User plants seeds
+User plants seedsq
         ↓
 App sets Sowing Calendar & Reminders
         ↓
